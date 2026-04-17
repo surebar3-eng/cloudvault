@@ -53,6 +53,10 @@ export default function App() {
   // Viewing state
   const [viewingFile, setViewingFile] = useState<FileMetadata | null>(null);
 
+  // View Shared Zip state
+  const [zipEntries, setZipEntries] = useState<JSZip.JSZipObject[] | null>(null);
+  const [isZipLoading, setIsZipLoading] = useState(false);
+
   // Load session
   useEffect(() => {
     document.title = 'CloudVault';
@@ -437,6 +441,32 @@ export default function App() {
                 View Document
               </button>
             )}
+            {sharedView.type === 'folder' && !zipEntries && (
+               <button
+                 disabled={isZipLoading}
+                 onClick={async () => {
+                   setIsZipLoading(true);
+                   try {
+                     const res = await fetch(sharedView.url);
+                     const blob = await res.blob();
+                     const zip = await JSZip.loadAsync(blob);
+                     const entries: JSZip.JSZipObject[] = [];
+                     zip.forEach((path, entry) => {
+                       if (!entry.dir && !path.startsWith('__MACOSX/')) entries.push(entry);
+                     });
+                     setZipEntries(entries);
+                   } catch (err: any) {
+                     alert("Failed to load folder contents: " + err.message);
+                   } finally {
+                     setIsZipLoading(false);
+                   }
+                 }}
+                 className="bg-hover text-text-primary border border-border px-8 py-3 rounded-lg font-semibold hover:bg-border transition-all flex items-center justify-center gap-2"
+               >
+                 {isZipLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Folder className="w-5 h-5" />}
+                 View Contents
+               </button>
+            )}
             <a 
               href={sharedView.url}
               download
@@ -449,13 +479,80 @@ export default function App() {
             </a>
           </div>
         </motion.div>
+
+        {zipEntries && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-8 w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-border overflow-hidden"
+          >
+            <div className="p-4 border-b border-border bg-bg/50 font-bold text-text-primary">
+              Folder Contents
+            </div>
+            <ul className="divide-y divide-border max-h-[400px] overflow-y-auto">
+              {zipEntries.map((entry, idx) => {
+                const parts = entry.name.split('/');
+                const fileName = parts[parts.length - 1];
+                return (
+                  <li key={idx} className="flex items-center justify-between p-4 hover:bg-hover transition-colors">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-text-secondary flex-shrink-0" />
+                      <span className="truncate text-sm font-medium text-text-primary" title={entry.name}>{entry.name}</span>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const fileBlob = await entry.async("blob");
+                          let mimeType = 'application/octet-stream';
+                          const ext = fileName.split('.').pop()?.toLowerCase() || '';
+                          
+                          if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                          else if (['mp4', 'webm', 'ogg'].includes(ext)) mimeType = `video/${ext}`;
+                          else if (['mp3', 'wav'].includes(ext)) mimeType = `audio/${ext}`;
+                          else if (ext === 'pdf') mimeType = 'application/pdf';
+                          else if (['txt', 'js', 'json', 'csv', 'md', 'html', 'css', 'ts', 'tsx'].includes(ext)) mimeType = `text/plain`;
+                          
+                          const blobWithMime = new Blob([fileBlob], { type: mimeType });
+                          const objUrl = URL.createObjectURL(blobWithMime);
+                          
+                          setViewingFile({
+                            id: 'zip-file',
+                            name: fileName,
+                            url: objUrl,
+                            type: mimeType,
+                            size: fileBlob.size,
+                            ownerUid: '',
+                            createdAt: 0
+                          });
+                        } catch (err) {
+                          alert("Failed to load preview for this file.");
+                        }
+                      }}
+                      className="bg-brand/10 text-brand px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-brand hover:text-white transition-colors"
+                    >
+                      View
+                    </button>
+                  </li>
+                );
+              })}
+              {zipEntries.length === 0 && (
+                 <li className="p-8 text-center text-text-secondary italic">This folder archive is empty.</li>
+              )}
+            </ul>
+          </motion.div>
+        )}
         
         {viewingFile && (
           <FileViewerModal 
             fileName={viewingFile.name}
             fileUrl={viewingFile.url}
             fileType={viewingFile.type}
-            onClose={() => setViewingFile(null)}
+            onClose={() => {
+              if (viewingFile.url.startsWith('blob:')) {
+                URL.revokeObjectURL(viewingFile.url);
+              }
+              setViewingFile(null);
+            }}
           />
         )}
       </div>
@@ -803,7 +900,12 @@ export default function App() {
           fileName={viewingFile.name}
           fileUrl={viewingFile.url}
           fileType={viewingFile.type}
-          onClose={() => setViewingFile(null)}
+          onClose={() => {
+            if (viewingFile.url.startsWith('blob:')) {
+              URL.revokeObjectURL(viewingFile.url);
+            }
+            setViewingFile(null);
+          }}
         />
       )}
     </div>
