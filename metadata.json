@@ -1,0 +1,6 @@
+{
+  "name": "CloudVault",
+  "description": "A mini Google Drive clone with user accounts and file management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
