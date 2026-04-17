@@ -19,6 +19,7 @@ interface FileListProps {
   onDownload: (file: FileMetadata) => void;
   onStar: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onFolderClick?: (folderId: string) => void;
   searchTerm?: string;
 }
 
@@ -41,7 +42,7 @@ const formatSize = (bytes: number) => {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 };
 
-export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, searchTerm }) => {
+export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, onFolderClick, searchTerm }) => {
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto w-full">
@@ -64,7 +65,14 @@ export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, o
               className="hover:bg-hover transition-colors group"
             >
               <td className="px-6 py-4">
-                <div className="flex items-center gap-3">
+                <div 
+                  className={`flex items-center gap-3 ${file.type === 'folder' && onFolderClick ? 'cursor-pointer hover:underline' : ''}`}
+                  onClick={() => {
+                    if (file.type === 'folder' && onFolderClick) {
+                      onFolderClick(file.id);
+                    }
+                  }}
+                >
                   <div className={`p-2 rounded-lg ${file.type === 'folder' ? 'bg-amber-50' : 'bg-blue-50'}`}>
                     {getFileIcon(file.type)}
                   </div>
@@ -86,12 +94,15 @@ export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, o
                   >
                     <Star className="w-4 h-4" fill={file.isStarred ? 'currentColor' : 'none'} />
                   </button>
-                  <button 
-                    onClick={() => onDownload(file)}
-                    className="p-1.5 rounded-lg text-text-secondary hover:text-brand hover:bg-white transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
+                  {file.type !== 'folder' && (
+                    <button 
+                      onClick={() => onDownload(file)}
+                      className="p-1.5 rounded-lg text-text-secondary hover:text-brand hover:bg-white transition-colors"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  )}
                   <button 
                     onClick={() => onDelete(file)}
                     className="p-1.5 rounded-lg text-text-secondary hover:text-red-500 hover:bg-white transition-colors"

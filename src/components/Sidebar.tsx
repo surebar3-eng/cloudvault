@@ -15,6 +15,7 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   storageUsed: number;
   onUpload: () => void;
+  onCreateFolder: () => void;
   onOpenSettings: () => void;
   isOpen: boolean;
   onClose: () => void;
@@ -27,7 +28,7 @@ const navItems = [
   { id: 'trash', label: 'Trash', icon: Trash2 },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, storageUsed, onUpload, onOpenSettings, isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, storageUsed, onUpload, onCreateFolder, onOpenSettings, isOpen, onClose }) => {
   const STORAGE_LIMIT = 5 * 1024 * 1024 * 1024; // 5 GB Security Limit
   const percentage = Math.min((storageUsed / STORAGE_LIMIT) * 100, 100);
 
@@ -46,13 +47,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, stora
         <span className="font-bold text-xl text-text-primary tracking-tight">CloudVault</span>
       </div>
 
-      <button 
-        onClick={onUpload}
-        className="flex items-center justify-center gap-2 bg-brand text-white py-3 rounded-xl font-semibold shadow-lg shadow-brand/20 hover:bg-brand/90 transition-all mb-8 w-full"
-      >
-        <Plus className="w-5 h-5" />
-        <span>Upload File</span>
-      </button>
+      <div className="flex gap-2 mb-8">
+        <button 
+          onClick={onUpload}
+          className="flex-1 flex items-center justify-center gap-2 bg-brand text-white py-2.5 rounded-xl font-semibold shadow-lg shadow-brand/20 hover:bg-brand/90 transition-all font-medium text-sm w-full"
+          title="Upload File"
+        >
+          <Plus className="w-4 h-4" />
+          <span>File</span>
+        </button>
+        <button 
+          onClick={onCreateFolder}
+          className="flex-1 flex items-center justify-center gap-2 bg-white border border-border text-text-primary py-2.5 rounded-xl font-semibold hover:bg-bg transition-all shadow-sm font-medium text-sm w-full"
+          title="New Folder"
+        >
+          <Folder className="w-4 h-4 text-amber-500" />
+          <span>Folder</span>
+        </button>
+      </div>
 
       <nav className="flex-1 space-y-1">
         {navItems.map((item) => (

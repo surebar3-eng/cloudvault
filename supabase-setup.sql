@@ -10,7 +10,8 @@ CREATE TABLE files (
   url TEXT NOT NULL,
   "createdAt" BIGINT NOT NULL,
   "isStarred" BOOLEAN DEFAULT false,
-  "isTrashed" BOOLEAN DEFAULT false
+  "isTrashed" BOOLEAN DEFAULT false,
+  "parentId" TEXT
 );
 
 -- 2. Setup RLS (Row Level Security) for the files table

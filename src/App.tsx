@@ -6,6 +6,7 @@ import { Auth } from './components/Auth';
 import { FileMetadata, UserProfile } from './types';
 import { motion } from 'motion/react';
 import { supabase } from './lib/supabase';
+import { ArrowLeft, Plus } from 'lucide-react';
 
 // Check if credentials exist
 const HAS_SUPABASE_CREDS = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
@@ -13,11 +14,14 @@ const HAS_SUPABASE_CREDS = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.e
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [files, setFiles] = useState<FileMetadata[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isReady, setIsReady] = useState(!HAS_SUPABASE_CREDS);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [folderName, setFolderName] = useState('');
   const [newName, setNewName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,13 +93,13 @@ export default function App() {
     if (activeTab === 'starred') filtered = files.filter(f => f.isStarred);
     else if (activeTab === 'trash') filtered = files.filter(f => f.isTrashed);
     else if (activeTab === 'recent') filtered = [...files].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
-    else if (activeTab === 'all') filtered = files.filter(f => !f.isTrashed);
+    else if (activeTab === 'all') filtered = files.filter(f => !f.isTrashed && (f.parentId || f.parentid || null) === currentFolderId);
 
     if (searchTerm) {
       filtered = filtered.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     return filtered;
-  }, [files, activeTab, searchTerm]);
+  }, [files, activeTab, searchTerm, currentFolderId]);
 
   const handleLogin = async (email: string, pass: string) => {
     if (!HAS_SUPABASE_CREDS) throw new Error("Supabase is not configured.");
@@ -133,6 +137,44 @@ export default function App() {
     }
   };
 
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folderName.trim() || !user || !HAS_SUPABASE_CREDS) return;
+    
+    try {
+      const folderId = `${user.uid}/${Date.now()}_${folderName.trim()}`;
+      
+      const newFolder: any = {
+        id: folderId,
+        name: folderName.trim(),
+        ownerUid: user.uid,
+        size: 0,
+        type: 'folder',
+        url: '',
+        createdAt: Date.now(),
+        isStarred: false,
+        isTrashed: false
+      };
+      
+      if (currentFolderId) {
+        newFolder.parentId = currentFolderId;
+      }
+
+      const { error: dbError } = await supabase
+        .from('files')
+        .insert([newFolder]);
+
+      if (dbError) throw dbError;
+
+      await fetchFiles(user.uid);
+      setIsCreateFolderOpen(false);
+      setFolderName('');
+    } catch (err: any) {
+      console.error('Folder creation error:', err);
+      alert(`Failed to create folder: ${err.message}`);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && user && HAS_SUPABASE_CREDS) {
@@ -156,7 +198,7 @@ export default function App() {
         // Get public URL
         const { data: { publicUrl } } = supabase.storage.from('vault').getPublicUrl(filePath);
 
-        const newFile = {
+        const newFile: any = {
            id: uploadData.path, // Use path as id
            name: file.name,
            ownerUid: user.uid,
@@ -167,6 +209,10 @@ export default function App() {
            isStarred: false,
            isTrashed: false
         };
+        
+        if (currentFolderId) {
+            newFile.parentId = currentFolderId;
+        }
 
         const { error: dbError } = await supabase
           .from('files')
@@ -246,10 +292,17 @@ export default function App() {
     <div className="flex min-h-screen bg-bg">
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setCurrentFolderId(null);
+        }} 
         storageUsed={user.storageUsed} 
         onUpload={() => {
           fileInputRef.current?.click();
+          setIsSidebarOpen(false);
+        }}
+        onCreateFolder={() => {
+          setIsCreateFolderOpen(true);
           setIsSidebarOpen(false);
         }}
         onOpenSettings={() => {
@@ -288,18 +341,48 @@ export default function App() {
         <div className="flex-1 p-4 sm:p-8 overflow-y-auto">
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-              <h1 className="text-xl sm:text-2xl font-bold text-text-primary capitalize">
-                {activeTab === 'all' ? 'My Files' : activeTab}
+              <h1 className="text-xl sm:text-2xl font-bold text-text-primary capitalize flex items-center gap-3">
+                {activeTab === 'all' && currentFolderId && (
+                  <button 
+                    onClick={() => {
+                      const currentFolder = files.find(f => f.id === currentFolderId);
+                      // Use parentId or parentid fallback safely
+                      setCurrentFolderId(currentFolder?.parentId || currentFolder?.parentid || null);
+                    }}
+                    className="p-1.5 hover:bg-hover rounded-lg transition-colors border border-transparent hover:border-border text-text-secondary hover:text-text-primary"
+                    title="Go back up"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                )}
+                {activeTab === 'all' ? (currentFolderId ? files.find(f => f.id === currentFolderId)?.name || 'Folder' : 'My Files')  : activeTab}
               </h1>
               
-              <div className="bg-white border border-border px-4 py-2 rounded-full text-xs font-medium text-text-secondary w-fit shadow-sm">
-                {searchTerm ? `Searching: "${searchTerm}"` : `Showing ${filteredFiles.length} items`}
+              <div className="flex items-center gap-3">
+                {activeTab === 'all' && currentFolderId && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-brand text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand/90 transition-all flex items-center gap-2 text-sm shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Upload File
+                  </button>
+                )}
+                <div className="bg-white border border-border px-4 py-2 rounded-full text-xs font-medium text-text-secondary w-fit shadow-sm">
+                  {searchTerm ? `Searching: "${searchTerm}"` : `Showing ${filteredFiles.length} items`}
+                </div>
               </div>
             </div>
 
             <FileList 
               files={filteredFiles} 
               searchTerm={searchTerm}
+              onFolderClick={(folderId) => {
+                if (activeTab === 'all') {
+                  setCurrentFolderId(folderId);
+                  setSearchTerm('');
+                }
+              }}
               onDownload={(f) => {
                 const link = document.createElement('a');
                 // Directly use URL if public or create logic to download via JS
@@ -367,6 +450,52 @@ export default function App() {
                 Save Changes
               </button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Create Folder Modal */}
+      {isCreateFolderOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-border p-8"
+          >
+            <h2 className="text-xl font-bold text-text-primary mb-6">Create New Folder</h2>
+            
+            <form onSubmit={handleCreateFolder}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-text-secondary uppercase mb-1.5 ml-1">Folder Name</label>
+                  <input 
+                    type="text" 
+                    value={folderName}
+                    onChange={(e) => setFolderName(e.target.value)}
+                    placeholder="e.g. Invoices"
+                    className="w-full bg-bg border border-border rounded-lg py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsCreateFolderOpen(false)}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-semibold text-text-secondary hover:bg-hover transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={!folderName.trim()}
+                  className="flex-1 bg-brand text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-brand/90 transition-all disabled:opacity-50"
+                >
+                  Create
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}

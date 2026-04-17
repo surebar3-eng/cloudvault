@@ -17,4 +17,6 @@ export interface FileMetadata {
   createdAt: number;
   isStarred?: boolean;
   isTrashed?: boolean;
+  parentId?: string | null;
+  parentid?: string | null; // Postgres lowercase fallback
 }
