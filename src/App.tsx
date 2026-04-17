@@ -10,6 +10,7 @@ import { FileList } from './components/FileList';
 import { Auth } from './components/Auth';
 import { FileMetadata, UserProfile } from './types';
 import { motion } from 'motion/react';
+import { Settings } from 'lucide-react';
 import { supabase } from './supabase';
 import { 
   subscribeToFiles, 
@@ -34,20 +35,42 @@ export default function App() {
   const [newName, setNewName] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
   // Auth and Profile sync
   useEffect(() => {
     document.title = 'CloudVault (Supabase)';
+    console.log('🔄 CloudVault: Initializing...');
+
+    if (!hasConfig) {
+      console.log('⚠️ CloudVault: No configuration found.');
+      setIsReady(true);
+      return;
+    }
+
+    // Safety timeout: If Supabase doesn't respond in 5s, show the auth screen anyway
+    const safetyTimeout = setTimeout(() => {
+      if (!isReady) {
+        console.warn('🕒 CloudVault: Initialization timed out. Forcing ready state.');
+        setIsReady(true);
+      }
+    }, 5000);
 
     let unsubscribeFiles: (() => void) | null = null;
+    console.log('🔌 CloudVault: Connecting to Auth listener...');
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔑 Auth Event:', event);
       const sbUser = session?.user;
+      clearTimeout(safetyTimeout);
 
       if (sbUser) {
         // Fetch or create profile
         try {
+          setSyncError(null);
           let profile = await getProfile(sbUser.id);
           
           if (!profile) {
@@ -71,8 +94,9 @@ export default function App() {
               setAllFiles(fetchedFiles);
             });
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Profile sync error:', error);
+          setSyncError(error.message || 'Failed to sync user profile. Check your database tables and RLS policies.');
         }
         setIsReady(true);
       } else {
@@ -191,10 +215,76 @@ export default function App() {
     }
   };
 
-  if (!isReady) return <div className="min-h-screen bg-bg flex items-center justify-center font-bold text-text-secondary text-sm">Initializing Supabase...</div>;
+  if (!hasConfig) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-border p-8 text-center">
+          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 mx-auto">
+            <Settings className="text-amber-600 w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-text-primary mb-2">Configuration Required</h2>
+          <p className="text-sm text-text-secondary mb-6 leading-relaxed">
+            CloudVault is ready to use, but needs your Supabase keys to connect to your storage.
+          </p>
+          <div className="bg-bg p-4 rounded-xl text-left border border-border mb-6">
+            <p className="text-[10px] font-bold text-text-secondary uppercase mb-2 tracking-widest">Setup Steps</p>
+            <ol className="text-xs space-y-3 text-text-primary list-decimal pl-4">
+              <li>Open <b>Settings → Secrets</b> in AI Studio.</li>
+              <li>
+                <b>VITE_SUPABASE_URL</b>: 
+                <span className="block text-[10px] text-text-secondary mt-1">Example: https://xyz.supabase.co (No trailing slash)</span>
+              </li>
+              <li>
+                <b>VITE_SUPABASE_ANON_KEY</b>: 
+                <span className="block text-[10px] text-text-secondary mt-1">Long string starting with "eyJ..." (Found in API Settings)</span>
+              </li>
+              <li>The app will automatically refresh!</li>
+            </ol>
+          </div>
+          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Connection: Waiting for Keys...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isReady) {
+    return (
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 border-4 border-brand/20 border-t-brand rounded-full animate-spin mb-6"></div>
+        <h2 className="text-xl font-bold text-text-primary mb-2 tracking-tight">Initializing CloudVault</h2>
+        <p className="text-sm text-text-secondary max-w-xs leading-relaxed">
+          Establishing a secure connection to your Supabase storage...
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-2">
+          <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] opacity-40">Connecting to Secure Layer</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="text-[10px] text-brand font-bold uppercase tracking-widest hover:underline"
+          >
+            Timed out? Reload page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
-    return <Auth onLogin={() => {}} />;
+    return (
+      <>
+        <Auth onLogin={() => {}} />
+        {syncError && (
+          <div className="fixed bottom-0 left-0 right-0 p-6 bg-red-600 text-white text-center text-xs font-bold z-[200] animate-slide-up">
+            ⚠️ Profile Sync Error: {syncError}
+            <button 
+              onClick={() => window.location.reload()}
+              className="ml-4 underline hover:text-white/80"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+      </>
+    );
   }
 
   return (
