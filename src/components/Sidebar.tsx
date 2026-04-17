@@ -16,6 +16,8 @@ interface SidebarProps {
   storageUsed: number;
   onUpload: () => void;
   onOpenSettings: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const navItems = [
@@ -25,7 +27,7 @@ const navItems = [
   { id: 'trash', label: 'Trash', icon: Trash2 },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, storageUsed, onUpload, onOpenSettings }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, storageUsed, onUpload, onOpenSettings, isOpen, onClose }) => {
   const STORAGE_LIMIT = 5 * 1024 * 1024 * 1024; // 5 GB Security Limit
   const percentage = Math.min((storageUsed / STORAGE_LIMIT) * 100, 100);
 
@@ -36,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, stora
   };
 
   return (
-    <aside className="w-64 bg-sidebar border-r border-border flex flex-col p-6 h-screen">
+    <aside className={`w-64 bg-sidebar border-r border-border flex flex-col p-6 h-screen fixed inset-y-0 left-0 z-40 md:relative md:translate-x-0 transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="flex items-center gap-2 mb-8 px-2">
         <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
           <Cloud className="text-white w-5 h-5" />
@@ -56,7 +58,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, stora
         {navItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => {
+              setActiveTab(item.id);
+              onClose();
+            }}
             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-medium transition-colors ${
               activeTab === item.id 
                 ? 'bg-hover text-brand' 

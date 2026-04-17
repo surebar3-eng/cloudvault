@@ -1,10 +1,10 @@
+/// <reference types="vite/client" />
+
 export interface UserProfile {
   uid: string;
   email: string | null;
   displayName: string | null;
   storageUsed: number;
-  role?: 'admin' | 'client';
-  createdAt?: { seconds: number; nanoseconds: number };
 }
 
 export interface FileMetadata {
@@ -14,7 +14,6 @@ export interface FileMetadata {
   size: number;
   type: string;
   url: string;
-  storagePath?: string;
   createdAt: number;
   isStarred?: boolean;
   isTrashed?: boolean;

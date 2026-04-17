@@ -3,7 +3,6 @@ import {
   Folder, 
   FileText, 
   Image as ImageIcon, 
-  Video,
   BarChart2, 
   Download, 
   MoreVertical, 
@@ -26,7 +25,6 @@ interface FileListProps {
 const getFileIcon = (type: string) => {
   if (type === 'folder') return <Folder className="w-5 h-5 text-amber-500" />;
   if (type.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-blue-500" />;
-  if (type.startsWith('video/')) return <Video className="w-5 h-5 text-purple-500" />;
   if (type.includes('spreadsheet') || type.includes('excel')) return <BarChart2 className="w-5 h-5 text-green-600" />;
   return <FileText className="w-5 h-5 text-blue-600" />;
 };
@@ -46,9 +44,10 @@ const formatSize = (bytes: number) => {
 export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, searchTerm }) => {
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="bg-bg/50">
+      <div className="overflow-x-auto w-full">
+        <table className="w-full text-left border-collapse min-w-[600px]">
+          <thead>
+            <tr className="bg-bg/50">
             <th className="px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Name</th>
             <th className="px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Owner</th>
             <th className="px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Last Modified</th>
@@ -114,7 +113,8 @@ export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, o
             </tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 };

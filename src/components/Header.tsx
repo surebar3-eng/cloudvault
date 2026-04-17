@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, User } from 'lucide-react';
+import { Search, User, Menu } from 'lucide-react';
 
 interface HeaderProps {
   user: {
@@ -10,18 +10,24 @@ interface HeaderProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
   onOpenSettings: () => void;
-  onDiagnostics: () => void;
+  onMenuClick: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onLogout, searchTerm, onSearchChange, onOpenSettings, onDiagnostics }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onLogout, searchTerm, onSearchChange, onOpenSettings, onMenuClick }) => {
   return (
-    <header className="h-16 px-8 flex items-center justify-between bg-sidebar border-b border-border sticky top-0 z-10">
-      <div className="flex-1 max-w-xl">
-        <div className="relative">
+    <header className="h-16 px-4 sm:px-8 flex items-center justify-between bg-sidebar border-b border-border sticky top-0 z-10 w-full gap-4">
+      <div className="flex-1 max-w-xl flex items-center gap-3">
+        <button 
+          onClick={onMenuClick}
+          className="md:hidden p-2 -ml-2 text-text-secondary hover:bg-hover hover:text-text-primary rounded-lg transition-colors"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
           <input 
             type="text" 
-            placeholder="Search files by name..."
+            placeholder="Search files..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-bg border border-border rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
@@ -30,13 +36,6 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, searchTerm, onSe
       </div>
 
       <div className="flex items-center gap-4">
-        <button 
-          onClick={onDiagnostics}
-          className="px-3 py-1.5 border border-border rounded-lg text-xs font-bold text-text-secondary hover:bg-hover transition-colors hidden md:block"
-        >
-          Check Storage
-        </button>
-
         <div className="text-right hidden sm:block">
           <div className="text-sm font-semibold text-text-primary">{user?.displayName || 'User'}</div>
           <div className="text-[10px] text-text-secondary uppercase tracking-wider font-bold">Personal Account</div>

@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user-specific metadata and storage usage.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "storageUsed": { "type": "number", "description": "Total bytes of storage used across all files." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "storageUsed"]
+    },
+    "FileMetadata": {
+      "title": "File Metadata",
+      "description": "Stores metadata for uploaded files.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "size": { "type": "number" },
+        "type": { "type": "string", "description": "MIME type or file extension category." },
+        "url": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isStarred": { "type": "boolean" },
+        "isTrashed": { "type": "boolean" }
+      },
+      "required": ["name", "ownerUid", "size", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document."
+    },
+    "files/{fileId}": {
+      "schema": "FileMetadata",
+      "description": "File metadata document."
+    }
+  }
+}

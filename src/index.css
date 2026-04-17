@@ -12,13 +12,6 @@
   --color-border: #e2e8f0;
   --color-hover: #f1f5f9;
   --color-success: #10b981;
-  
-  --animate-slide-up: slide-up 0.3s ease-out;
-
-  @keyframes slide-up {
-    from { transform: translateY(100%); }
-    to { transform: translateY(0); }
-  }
 }
 
 @layer base {

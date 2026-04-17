@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
-import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,9 +10,10 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Middleware for parsing JSON
   app.use(express.json());
 
-  // API Routes
+  // API Routes (Simulating the PHP/Java backend)
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", service: "CloudVault Core" });
   });
@@ -24,7 +24,7 @@ async function startServer() {
       server: { 
         middlewareMode: true,
         host: '0.0.0.0',
-        port: PORT
+        port: 3000
       },
       appType: "spa",
     });

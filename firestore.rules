@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Is the user signed in?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: Does the user own this document?
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // File Metadata Rules
+    match /files/{fileId} {
+      allow read: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || resource.data.isPublic == true);
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+  }
+}
