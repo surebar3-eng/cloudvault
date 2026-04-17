@@ -10,7 +10,8 @@ import {
   Trash2,
   Clock,
   Users,
-  Share2
+  Share2,
+  Eye
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FileMetadata } from '../types';
@@ -21,6 +22,7 @@ interface FileListProps {
   onStar: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
   onShare: (file: FileMetadata) => void;
+  onView?: (file: FileMetadata) => void;
   onFolderClick?: (folderId: string) => void;
   searchTerm?: string;
 }
@@ -44,7 +46,7 @@ const formatSize = (bytes: number) => {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 };
 
-export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, onShare, onFolderClick, searchTerm }) => {
+export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, onShare, onView, onFolderClick, searchTerm }) => {
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto w-full">
@@ -68,10 +70,12 @@ export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, o
             >
               <td className="px-6 py-4">
                 <div 
-                  className={`flex items-center gap-3 ${file.type === 'folder' && onFolderClick ? 'cursor-pointer hover:underline' : ''}`}
+                  className={`flex items-center gap-3 cursor-pointer hover:underline`}
                   onClick={() => {
                     if (file.type === 'folder' && onFolderClick) {
                       onFolderClick(file.id);
+                    } else if (file.type !== 'folder' && onView) {
+                      onView(file);
                     }
                   }}
                 >
@@ -90,6 +94,15 @@ export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, o
               </td>
               <td className="px-6 py-4 text-right">
                 <div className="flex items-center justify-end gap-2">
+                  {file.type !== 'folder' && onView && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onView(file); }}
+                      className="p-1.5 rounded-lg text-text-secondary hover:text-brand hover:bg-white transition-colors"
+                      title="View"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  )}
                   <button 
                     onClick={() => onStar(file)}
                     className={`p-1.5 rounded-lg hover:bg-white transition-colors ${file.isStarred ? 'text-amber-500' : 'text-text-secondary'}`}

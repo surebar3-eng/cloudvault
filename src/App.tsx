@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { FileList } from './components/FileList';
 import { Auth } from './components/Auth';
+import { FileViewerModal } from './components/FileViewerModal';
 import { FileMetadata, UserProfile } from './types';
 import { motion } from 'motion/react';
 import { supabase } from './lib/supabase';
@@ -48,6 +49,9 @@ export default function App() {
   const [isCopied, setIsCopied] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
+  
+  // Viewing state
+  const [viewingFile, setViewingFile] = useState<FileMetadata | null>(null);
 
   // Load session
   useEffect(() => {
@@ -415,7 +419,24 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 flex-wrap">
+            {sharedView.type !== 'folder' && (
+              <button
+                onClick={() => setViewingFile({
+                  id: 'shared',
+                  name: sharedView.name,
+                  url: sharedView.url,
+                  type: sharedView.type,
+                  size: 0,
+                  ownerUid: '',
+                  createdAt: 0
+                })}
+                className="bg-hover text-text-primary border border-border px-8 py-3 rounded-lg font-semibold hover:bg-border transition-all flex items-center justify-center gap-2"
+              >
+                <FileText className="w-5 h-5" />
+                View Document
+              </button>
+            )}
             <a 
               href={sharedView.url}
               download
@@ -428,6 +449,15 @@ export default function App() {
             </a>
           </div>
         </motion.div>
+        
+        {viewingFile && (
+          <FileViewerModal 
+            fileName={viewingFile.name}
+            fileUrl={viewingFile.url}
+            fileType={viewingFile.type}
+            onClose={() => setViewingFile(null)}
+          />
+        )}
       </div>
     );
   }
@@ -532,6 +562,7 @@ export default function App() {
                 }
               }}
               onShare={openShareModal}
+              onView={(f) => setViewingFile(f)}
               onDownload={async (f) => {
                 if (f.type === 'folder') {
                   try {
@@ -764,6 +795,16 @@ export default function App() {
             )}
           </motion.div>
         </div>
+      )}
+
+      {/* Embedded Generic File Viewer */}
+      {viewingFile && (
+        <FileViewerModal 
+          fileName={viewingFile.name}
+          fileUrl={viewingFile.url}
+          fileType={viewingFile.type}
+          onClose={() => setViewingFile(null)}
+        />
       )}
     </div>
   );
