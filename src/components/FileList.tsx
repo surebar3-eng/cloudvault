@@ -9,7 +9,8 @@ import {
   Star, 
   Trash2,
   Clock,
-  Users
+  Users,
+  Share2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FileMetadata } from '../types';
@@ -19,6 +20,7 @@ interface FileListProps {
   onDownload: (file: FileMetadata) => void;
   onStar: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onShare: (file: FileMetadata) => void;
   onFolderClick?: (folderId: string) => void;
   searchTerm?: string;
 }
@@ -42,7 +44,7 @@ const formatSize = (bytes: number) => {
   return `${size.toFixed(1)} ${units[unitIndex]}`;
 };
 
-export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, onFolderClick, searchTerm }) => {
+export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, onDelete, onShare, onFolderClick, searchTerm }) => {
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto w-full">
@@ -94,15 +96,20 @@ export const FileList: React.FC<FileListProps> = ({ files, onDownload, onStar, o
                   >
                     <Star className="w-4 h-4" fill={file.isStarred ? 'currentColor' : 'none'} />
                   </button>
-                  {file.type !== 'folder' && (
-                    <button 
-                      onClick={() => onDownload(file)}
-                      className="p-1.5 rounded-lg text-text-secondary hover:text-brand hover:bg-white transition-colors"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onShare(file); }}
+                    className="p-1.5 rounded-lg text-text-secondary hover:text-brand hover:bg-white transition-colors"
+                    title="Share"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDownload(file); }}
+                    className="p-1.5 rounded-lg text-text-secondary hover:text-brand hover:bg-white transition-colors"
+                    title="Download"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
                   <button 
                     onClick={() => onDelete(file)}
                     className="p-1.5 rounded-lg text-text-secondary hover:text-red-500 hover:bg-white transition-colors"

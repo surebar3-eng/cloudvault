@@ -6,12 +6,26 @@ import { Auth } from './components/Auth';
 import { FileMetadata, UserProfile } from './types';
 import { motion } from 'motion/react';
 import { supabase } from './lib/supabase';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, Share2, Copy, Check, Loader2, Folder, FileText, Download } from 'lucide-react';
+import JSZip from 'jszip';
 
 // Check if credentials exist
 const HAS_SUPABASE_CREDS = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 export default function App() {
+  // Check for Shared View
+  const [sharedView, setSharedView] = useState<{name: string, type: string, url: string} | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('shared') === 'true') {
+      return {
+        name: params.get('name') || 'Shared File',
+        type: params.get('type') || 'file',
+        url: params.get('url') || ''
+      };
+    }
+    return null;
+  });
+
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -25,6 +39,15 @@ export default function App() {
   const [newName, setNewName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sharing states
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [fileToShare, setFileToShare] = useState<FileMetadata | null>(null);
+  const [shareExpiration, setShareExpiration] = useState<number>(86400); // 1 day in seconds
+  const [shareLink, setShareLink] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState('');
 
   // Load session
   useEffect(() => {
@@ -134,6 +157,89 @@ export default function App() {
       }
       setUser({ ...user, displayName: newName });
       setIsSettingsOpen(false);
+    }
+  };
+
+  const openShareModal = (file: FileMetadata) => {
+    setFileToShare(file);
+    setShareLink('');
+    setIsCopied(false);
+    setShareExpiration(86400);
+    setIsShareOpen(true);
+    setGenerationProgress('');
+  };
+
+  const zipFolder = async (folder: FileMetadata) => {
+    const zip = new JSZip();
+    setGenerationProgress('Collecting files...');
+
+    let fileCount = 0;
+    const addFilesToZip = async (currentFolderId: string, currentZip: JSZip) => {
+      const children = files.filter(f => f.parentId === currentFolderId || f.parentid === currentFolderId);
+      for (const child of children) {
+        if (child.type === 'folder') {
+          const newZipFolder = currentZip.folder(child.name);
+          if (newZipFolder) await addFilesToZip(child.id, newZipFolder);
+        } else {
+          setGenerationProgress(`Downloading ${child.name}...`);
+          const { data, error } = await supabase.storage.from('vault').download(child.id);
+          if (data) {
+            currentZip.file(child.name, data);
+            fileCount++;
+          } else if (error) {
+            console.error('Failed to grab file for zip:', child.name, error);
+          }
+        }
+      }
+    };
+
+    await addFilesToZip(folder.id, zip);
+    
+    setGenerationProgress('Compressing folder...');
+    return await zip.generateAsync({ type: 'blob' });
+  };
+
+  const generateSharedLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fileToShare || !HAS_SUPABASE_CREDS || !user) return;
+    setIsGeneratingLink(true);
+    
+    try {
+      let targetFileId = fileToShare.id;
+
+      if (fileToShare.type === 'folder') {
+        // Zip the folder
+        const zipBlob = await zipFolder(fileToShare);
+        
+        // Upload zip to a temp shared path
+        setGenerationProgress('Uploading secure archive...');
+        const zipPath = `${user.uid}/shared_zips/${fileToShare.name}_${Date.now()}.zip`;
+        const { error: uploadError } = await supabase.storage
+          .from('vault')
+          .upload(zipPath, zipBlob, { upsert: true });
+
+        if (uploadError) throw uploadError;
+        targetFileId = zipPath;
+      }
+
+      setGenerationProgress('Generating secured link...');
+      const { data, error } = await supabase.storage.from('vault').createSignedUrl(targetFileId, shareExpiration);
+      if (error) throw error;
+      if (data?.signedUrl) {
+        const viewerUrl = new URL(window.location.href.split('?')[0]); // Base URL
+        viewerUrl.searchParams.set('shared', 'true');
+        viewerUrl.searchParams.set('name', fileToShare.type === 'folder' ? `${fileToShare.name}.zip` : fileToShare.name);
+        viewerUrl.searchParams.set('type', fileToShare.type);
+        viewerUrl.searchParams.set('url', data.signedUrl);
+        
+        setShareLink(viewerUrl.toString());
+      }
+    } catch (err: any) {
+      console.error('Share error:', err);
+      alert('Failed to generate link: ' + err.message);
+    } finally {
+      setIsGeneratingLink(false);
+      setGenerationProgress('');
     }
   };
 
@@ -284,6 +390,48 @@ export default function App() {
 
   if (!isReady) return <div className="min-h-screen bg-bg flex items-center justify-center font-bold text-text-secondary">Loading CloudVault...</div>;
 
+  // Render Shared View if present
+  if (sharedView) {
+    const isImage = sharedView.type.startsWith('image/');
+    
+    return (
+      <div className="min-h-screen bg-bg flex flex-col pt-20 items-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-border p-8 text-center"
+        >
+          <div className="flex justify-center mb-6">
+            <div className="p-4 bg-brand/10 rounded-full text-brand">
+              {sharedView.type === 'folder' ? <Folder className="w-12 h-12" /> : <FileText className="w-12 h-12" />}
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">{sharedView.name}</h2>
+          <p className="text-text-secondary mb-8">This {sharedView.type === 'folder' ? 'folder archive' : 'file'} was shared securely via CloudVault.</p>
+
+          {isImage && (
+            <div className="mb-8 flex justify-center">
+              <img src={sharedView.url} alt={sharedView.name} className="max-w-full max-h-[400px] rounded-lg shadow-sm border border-border object-contain" />
+            </div>
+          )}
+
+          <div className="flex justify-center gap-4">
+            <a 
+              href={sharedView.url}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-brand text-white px-8 py-3 rounded-lg font-semibold hover:bg-brand/90 transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-5 h-5" />
+              Download {sharedView.type === 'folder' ? 'Archive' : 'File'}
+            </a>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Auth onLogin={handleLogin} onSignUp={handleSignUp} />;
   }
@@ -383,13 +531,28 @@ export default function App() {
                   setSearchTerm('');
                 }
               }}
-              onDownload={(f) => {
-                const link = document.createElement('a');
-                // Directly use URL if public or create logic to download via JS
-                link.href = f.url;
-                link.target = '_blank';
-                link.download = f.name;
-                link.click();
+              onShare={openShareModal}
+              onDownload={async (f) => {
+                if (f.type === 'folder') {
+                  try {
+                    const blob = await zipFolder(f);
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${f.name}.zip`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  } catch (err: any) {
+                    alert('Could not zip folder: ' + err.message);
+                  }
+                  setGenerationProgress('');
+                } else {
+                  const link = document.createElement('a');
+                  link.href = f.url;
+                  link.target = '_blank';
+                  link.download = f.name;
+                  link.click();
+                }
               }}
               onStar={toggleStar}
               onDelete={deleteFile}
@@ -496,6 +659,109 @@ export default function App() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {isShareOpen && fileToShare && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-border p-8"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-brand/10 rounded-lg text-brand">
+                <Share2 className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-bold text-text-primary">Share File</h2>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-text-secondary">
+                Generating a secure link for: <span className="font-semibold text-text-primary">{fileToShare.name}</span>
+              </p>
+            </div>
+
+            {!shareLink ? (
+              <form onSubmit={generateSharedLink}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-text-secondary uppercase mb-1.5 ml-1">Link Expiration</label>
+                    <select 
+                      value={shareExpiration}
+                      onChange={(e) => setShareExpiration(Number(e.target.value))}
+                      className="w-full bg-bg border border-border rounded-lg py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    >
+                      <option value={3600}>1 Hour</option>
+                      <option value={86400}>1 Day</option>
+                      <option value={604800}>7 Days</option>
+                      <option value={2592000}>30 Days</option>
+                      <option value={31536000}>1 Year</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setIsShareOpen(false)}
+                    className="flex-1 px-4 py-2.5 rounded-lg font-semibold text-text-secondary hover:bg-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isGeneratingLink}
+                    className="flex-1 bg-brand text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-brand/90 transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+                  >
+                    {isGeneratingLink ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {generationProgress || 'Generating...'}
+                      </>
+                    ) : 'Create Link'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-4 opacity-100 animate-in fade-in zoom-in duration-200">
+                <div>
+                  <label className="block text-xs font-bold text-text-secondary uppercase mb-1.5 ml-1">Secure Link</label>
+                  <div className="flex gap-2">
+                     <input 
+                       type="text" 
+                       value={shareLink}
+                       readOnly
+                       className="flex-1 bg-bg border border-border rounded-lg py-2.5 px-4 text-sm focus:outline-none"
+                     />
+                     <button
+                       onClick={() => {
+                         navigator.clipboard.writeText(shareLink);
+                         setIsCopied(true);
+                         setTimeout(() => setIsCopied(false), 2000);
+                       }}
+                       className="p-2.5 bg-brand/10 text-brand rounded-lg hover:bg-brand/20 transition-colors flex items-center justify-center min-w-[44px]"
+                       title="Copy Link"
+                     >
+                       {isCopied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                     </button>
+                  </div>
+                  <p className="text-[10px] text-text-secondary mt-2 text-center">
+                    Anyone with this link can download the file until it expires.
+                  </p>
+                </div>
+                <div className="mt-8">
+                  <button 
+                    onClick={() => setIsShareOpen(false)}
+                    className="w-full bg-hover text-text-primary px-4 py-2.5 rounded-lg font-semibold hover:bg-border transition-all"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         </div>
       )}
