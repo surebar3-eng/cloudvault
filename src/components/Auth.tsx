@@ -33,11 +33,19 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, onSignUp }) => {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6 relative">
+      {/* Background Image Setup */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center"
+        style={{ backgroundImage: "url('/cats-bg.jpg')" }}
+      />
+      {/* Dark overlay to ensure the login box remains legible */}
+      <div className="absolute inset-0 z-0 bg-black/30 backdrop-blur-sm" />
+
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full bg-white rounded-2xl shadow-xl shadow-brand/5 border border-border p-8"
+        className="max-w-md w-full bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8 z-10 relative"
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 bg-brand rounded-xl flex items-center justify-center mb-4">
